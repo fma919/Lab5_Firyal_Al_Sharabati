@@ -1,5 +1,8 @@
 #!/usr/bin/python
+
 import sqlite3
+from flask import Flask, request, jsonify
+from flask_cors import CORS
 
 
 def connect_to_db():
@@ -33,6 +36,7 @@ def insert_user(user):
     try:
         conn = connect_to_db()
         cur = conn.cursor()
+
         cur.execute(
             "INSERT INTO users (name, email, phone, address, country) VALUES (?, ?, ?, ?, ?)",
             (
@@ -43,10 +47,13 @@ def insert_user(user):
                 user['country']
             )
         )
+
         conn.commit()
         inserted_user = get_user_by_id(cur.lastrowid)
+
     except:
         conn.rollback()
+
     finally:
         conn.close()
 
@@ -55,10 +62,12 @@ def insert_user(user):
 
 def get_users():
     users = []
+
     try:
         conn = connect_to_db()
         conn.row_factory = sqlite3.Row
         cur = conn.cursor()
+
         cur.execute("SELECT * FROM users")
         rows = cur.fetchall()
 
@@ -71,6 +80,7 @@ def get_users():
             user["address"] = i["address"]
             user["country"] = i["country"]
             users.append(user)
+
     except:
         users = []
 
@@ -79,14 +89,17 @@ def get_users():
 
 def get_user_by_id(user_id):
     user = {}
+
     try:
         conn = connect_to_db()
         conn.row_factory = sqlite3.Row
         cur = conn.cursor()
+
         cur.execute(
             "SELECT * FROM users WHERE user_id = ?",
             (user_id,)
         )
+
         row = cur.fetchone()
 
         user["user_id"] = row["user_id"]
@@ -95,6 +108,7 @@ def get_user_by_id(user_id):
         user["phone"] = row["phone"]
         user["address"] = row["address"]
         user["country"] = row["country"]
+
     except:
         user = {}
 
@@ -103,9 +117,11 @@ def get_user_by_id(user_id):
 
 def update_user(user):
     updated_user = {}
+
     try:
         conn = connect_to_db()
         cur = conn.cursor()
+
         cur.execute(
             "UPDATE users SET name = ?, email = ?, phone = ?, address = ?, country = ? WHERE user_id = ?",
             (
@@ -117,11 +133,14 @@ def update_user(user):
                 user["user_id"]
             )
         )
+
         conn.commit()
         updated_user = get_user_by_id(user["user_id"])
+
     except:
         conn.rollback()
         updated_user = {}
+
     finally:
         conn.close()
 
@@ -130,21 +149,63 @@ def update_user(user):
 
 def delete_user(user_id):
     message = {}
+
     try:
         conn = connect_to_db()
+
         conn.execute(
             "DELETE FROM users WHERE user_id = ?",
             (user_id,)
         )
+
         conn.commit()
         message["status"] = "User deleted successfully"
+
     except:
         conn.rollback()
         message["status"] = "Cannot delete user"
+
     finally:
         conn.close()
 
     return message
 
 
+# Create database table
 create_db_table()
+
+
+# Flask REST API
+app = Flask(__name__)
+CORS(app, resources={r"/*": {"origins": "*"}})
+
+
+@app.route('/api/users', methods=['GET'])
+def api_get_users():
+    return jsonify(get_users())
+
+
+@app.route('/api/users/<user_id>', methods=['GET'])
+def api_get_user(user_id):
+    return jsonify(get_user_by_id(user_id))
+
+
+@app.route('/api/users/add', methods=['POST'])
+def api_add_user():
+    user = request.get_json()
+    return jsonify(insert_user(user))
+
+
+@app.route('/api/users/update', methods=['PUT'])
+def api_update_user():
+    user = request.get_json()
+    return jsonify(update_user(user))
+
+
+@app.route('/api/users/delete/<user_id>', methods=['DELETE'])
+def api_delete_user(user_id):
+    return jsonify(delete_user(user_id))
+
+
+if __name__ == "__main__":
+    app.run()
